@@ -44,3 +44,5 @@ I kicked it off by first working with the AI to add the files that were planned,
 There was some redundant code I was able to catch it writing. For example, it wrote private clrf checks in multiple locations, which were all essentially redundant.
 
 At this point, I decided to have copilot do a documentation pass, make sure everything had comments. It proceeded to choke trying to get this done for about 30 minutes. Not sure why.
+
+I managed to get past that, and worked on some testing. It wasn't quite creating all the test coverage needed, so I made it expand the testing.
