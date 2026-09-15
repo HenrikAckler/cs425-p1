@@ -125,3 +125,4 @@ The scripted transport must not use a network connection. It should allow tests 
 - Keep SMTP sequencing in `session.c`.
 - Keep the socket adapter unaware of SMTP protocol details.
 - Keep multiple recipients, TLS, authentication, and `EHLO` out of scope because the assignment requires one recipient and `HELO` only.
+

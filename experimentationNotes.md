@@ -39,3 +39,8 @@ It gave a pretty good response, largely recorded in `implementation-plan.md`. I'
 ## Task 3: Implementation
 
 I kicked it off by first working with the AI to add the files that were planned, just as stubs. Then it was time for working on command line parsing in `main.c`, per step 5. 
+   - This worked pretty well. I had to question it a bit on it's handling of how it read standard in, there were some redundant cautions. I'm still not convinvced it's the most efficient way to do it, but this should be sufficient for now.
+
+There was some redundant code I was able to catch it writing. For example, it wrote private clrf checks in multiple locations, which were all essentially redundant.
+
+At this point, I decided to have copilot do a documentation pass, make sure everything had comments. It proceeded to choke trying to get this done for about 30 minutes. Not sure why.

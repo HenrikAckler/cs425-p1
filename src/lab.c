@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/** Allocate and format the greeting returned by the lab's sample API. */
 char *get_greeting(const char *restrict name)
 {
   if (name == NULL)

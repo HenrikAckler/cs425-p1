@@ -6,6 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "protocolHelpers.h"
+#include "session.h"
+#include "socketTransport.h"
+
 #ifdef TEST
 #define main main_exclude
 #endif
@@ -22,11 +26,6 @@ static void print_usage(const char *program)
            "  -H <helo-host>  host name sent with HELO (default: localhost)\n"
            "  <server>        host name or address of the mail server\n",
            program);
-}
-
-static int contains_crlf(const char *value)
-{
-    return value != NULL && strpbrk(value, "\r\n") != NULL;
 }
 
 static char *read_stdin(void)
@@ -133,15 +132,16 @@ int main(int argc, char **argv)
         return 2;
     }
 
-    //Stub for session call
-    (void) from;
-    (void) to;
-    (void) subject;
-    (void) port;
-    (void) helo_host;
-    (void) argv[optind];
-    free(body);
+    socket_transport socket = {.descriptor = -1};
+    if (socket_transport_connect(&socket, argv[optind], port) < 0) {
+        free(body);
+        return 2;
+    }
 
-    fprintf(stderr, "Command-line parsing succeeded; SMTP transport is not implemented yet\n");
-    return 0;
+    session_transport transport = socket_transport_as_session(&socket);
+    int session_result = session_run(&transport, from, to, subject, body,
+                                     helo_host);
+    socket_transport_close(&socket);
+    free(body);
+    return session_result == 0 ? 0 : 2;
 }
