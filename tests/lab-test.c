@@ -1,8 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
 
 #include "harness/unity.h"
+#include "../src/lab.h"
 #include "../src/protocolHelpers.h"
 #include "../src/session.h"
 #include "../src/socketTransport.h"
@@ -128,6 +132,15 @@ void test_contains_crlf(void)
     TEST_ASSERT_TRUE(contains_crlf("bad\r\nvalue"));
 }
 
+void test_lab_greeting(void)
+{
+    char *greeting = get_greeting("Ada");
+    TEST_ASSERT_NOT_NULL(greeting);
+    TEST_ASSERT_EQUAL_STRING("Hello, Ada!", greeting);
+    free(greeting);
+    TEST_ASSERT_NULL(get_greeting(NULL));
+}
+
 void test_reply_parsing_and_framing(void)
 {
     /* SMTP replies require three digits followed by a space or continuation dash. */
@@ -136,6 +149,9 @@ void test_reply_parsing_and_framing(void)
     TEST_ASSERT_EQUAL_INT(-1, parse_reply_code(NULL));
     TEST_ASSERT_EQUAL_INT(-1, parse_reply_code(""));
     TEST_ASSERT_EQUAL_INT(-1, parse_reply_code("25 OK\r\n"));
+    TEST_ASSERT_EQUAL_INT(-1, parse_reply_code("25a OK\r\n"));
+    TEST_ASSERT_EQUAL_INT(-1, parse_reply_code("20a OK\r\n"));
+    TEST_ASSERT_EQUAL_INT(-1, parse_reply_code("2/0 OK\r\n"));
     TEST_ASSERT_EQUAL_INT(-1, parse_reply_code("250?bad\r\n"));
     TEST_ASSERT_EQUAL_INT(-1, parse_reply_code("2a0 OK\r\n"));
 
@@ -202,6 +218,9 @@ void test_data_payload(void)
     free(payload);
 
     TEST_ASSERT_NULL(build_data_payload(NULL, "to", "subject", "body"));
+    TEST_ASSERT_NULL(build_data_payload("from", NULL, "subject", "body"));
+    TEST_ASSERT_NULL(build_data_payload("from", "to", NULL, "body"));
+    TEST_ASSERT_NULL(build_data_payload("from", "to", "subject", NULL));
     TEST_ASSERT_NULL(build_data_payload("bad\nfrom", "to", "subject", "body"));
     TEST_ASSERT_NULL(build_data_payload("from", "bad\rto", "subject", "body"));
     TEST_ASSERT_NULL(build_data_payload("from", "to", "bad\nsubject", "body"));
@@ -315,6 +334,23 @@ void test_session_rejects_malformed_and_mismatched_replies(void)
     assert_session_stops_at_failure("220-ready\r\n250 wrong-code\r\n", "");
     assert_session_stops_at_failure("220-ready\r\n221 final\r\n", "");
     assert_session_stops_at_failure("220 ready", "");
+    assert_session_stops_at_failure("220\rX", "");
+    assert_session_stops_at_failure("220-more\r\n", "");
+}
+
+void test_session_rejects_too_many_reply_lines(void)
+{
+    char replies[2048];
+    size_t offset = 0U;
+    for (size_t index = 0U; index < 101U; ++index) {
+        offset += (size_t) snprintf(replies + offset, sizeof(replies) - offset,
+                                    "220-more\r\n");
+    }
+    replies[offset - 8U] = ' ';
+    scripted_transport script;
+    script_init(&script, replies, sizeof(replies), sizeof(replies));
+    TEST_ASSERT_EQUAL_INT(-1, run_session(&script));
+    TEST_ASSERT_EQUAL_STRING("", script.writes);
 }
 
 void test_session_rejects_transport_failures_and_invalid_inputs(void)
@@ -325,6 +361,11 @@ void test_session_rejects_transport_failures_and_invalid_inputs(void)
     script.fail_read_call = 2U;
     TEST_ASSERT_EQUAL_INT(-1, run_session(&script));
     TEST_ASSERT_EQUAL_STRING("HELO localhost\r\n", script.writes);
+
+    script_init(&script, "220 ready\r\n", 4096U, 4096U);
+    script.fail_write_call = 1U;
+    TEST_ASSERT_EQUAL_INT(-1, run_session(&script));
+    TEST_ASSERT_EQUAL_STRING("", script.writes);
 
     script_init(&script, "220 ready\r\n250 helo\r\n250 mail\r\n250 rcpt\r\n"
                          "354 data\r\n", 4096U, 4096U);
@@ -342,10 +383,33 @@ void test_session_rejects_transport_failures_and_invalid_inputs(void)
     TEST_ASSERT_EQUAL_INT(-1, session_run(&transport, "from", "to", "subject",
                                           "body", "host"));
     transport = script_as_session(&script);
+    transport.write = NULL;
+    TEST_ASSERT_EQUAL_INT(-1, session_run(&transport, "from", "to", "subject",
+                                          "body", "host"));
+    transport = script_as_session(&script);
     TEST_ASSERT_EQUAL_INT(-1, session_run(&transport, NULL, "to", "subject",
                                           "body", "host"));
+    TEST_ASSERT_EQUAL_INT(-1, session_run(&transport, "from", NULL, "subject",
+                                          "body", "host"));
+    TEST_ASSERT_EQUAL_INT(-1, session_run(&transport, "from", "to", NULL,
+                                          "body", "host"));
+    TEST_ASSERT_EQUAL_INT(-1, session_run(&transport, "from", "to", "subject",
+                                          NULL, "host"));
     TEST_ASSERT_EQUAL_INT(-1, session_run(&transport, "from", "to", "subject",
                                           "body", NULL));
+    script_init(&script, "220 ready\r\n", 4096U, 4096U);
+    transport = script_as_session(&script);
+    TEST_ASSERT_EQUAL_INT(-1, session_run(&transport, "from", "to", "subject",
+                                          "bad\rbody", "host"));
+
+    script_init(&script, "220 ready\r\n250 helo\r\n250 mail\r\n250 rcpt\r\n"
+                         "354 data\r\n", 4096U, 4096U);
+    script.fail_read_call = 6U;
+    transport = script_as_session(&script);
+    TEST_ASSERT_EQUAL_INT(-1, session_run(&transport, "from", "to", "subject",
+                                          "body", "host"));
+    TEST_ASSERT_EQUAL_INT(-1, session_run(&transport, "from", "to", "subject",
+                                          "bad\rbody", "host"));
 }
 
 void test_socket_transport_contract(void)
@@ -368,10 +432,66 @@ void test_socket_transport_contract(void)
     TEST_ASSERT_EQUAL(&socket, transport.context);
 }
 
+void test_socket_transport_io(void)
+{
+    int descriptors[2];
+    TEST_ASSERT_EQUAL_INT(0, socketpair(AF_UNIX, SOCK_STREAM, 0, descriptors));
+
+    socket_transport socket = {.descriptor = descriptors[0]};
+    session_transport transport = socket_transport_as_session(&socket);
+    char buffer[8] = {0};
+    TEST_ASSERT_EQUAL_INT(5, (int) write(descriptors[1], "hello", 5U));
+    TEST_ASSERT_EQUAL_INT(5, (int) transport.read(transport.context, buffer,
+                                                   sizeof(buffer)));
+    TEST_ASSERT_EQUAL_STRING("hello", buffer);
+
+    TEST_ASSERT_EQUAL_INT(5, (int) transport.write(transport.context, "world",
+                                                    5U));
+    memset(buffer, 0, sizeof(buffer));
+    TEST_ASSERT_EQUAL_INT(5, (int) read(descriptors[1], buffer, sizeof(buffer)));
+    TEST_ASSERT_EQUAL_STRING("world", buffer);
+
+    socket_transport_close(&socket);
+    (void) close(descriptors[1]);
+}
+
+void test_socket_transport_connects_and_rejects_closed_port(void)
+{
+    int listener = socket(AF_INET, SOCK_STREAM, 0);
+    TEST_ASSERT_GREATER_OR_EQUAL_INT(0, listener);
+    struct sockaddr_in address = {0};
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    address.sin_port = htons(0U);
+    TEST_ASSERT_EQUAL_INT(0, bind(listener, (struct sockaddr *) &address,
+                                  sizeof(address)));
+    TEST_ASSERT_EQUAL_INT(0, listen(listener, 1));
+    socklen_t address_length = sizeof(address);
+    TEST_ASSERT_EQUAL_INT(0, getsockname(listener, (struct sockaddr *) &address,
+                                         &address_length));
+
+    char port[16];
+    (void) snprintf(port, sizeof(port), "%u", (unsigned) ntohs(address.sin_port));
+    socket_transport transport = {.descriptor = -1};
+    TEST_ASSERT_EQUAL_INT(0, socket_transport_connect(&transport, "127.0.0.1",
+                                                       port));
+    int accepted = accept(listener, NULL, NULL);
+    TEST_ASSERT_GREATER_OR_EQUAL_INT(0, accepted);
+    socket_transport_close(&transport);
+    (void) close(accepted);
+    (void) close(listener);
+
+    transport.descriptor = 123;
+    TEST_ASSERT_EQUAL_INT(-1, socket_transport_connect(&transport, "127.0.0.1",
+                                                       port));
+    TEST_ASSERT_EQUAL_INT(-1, transport.descriptor);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_contains_crlf);
+    RUN_TEST(test_lab_greeting);
     RUN_TEST(test_reply_parsing_and_framing);
     RUN_TEST(test_dot_stuffing);
     RUN_TEST(test_data_payload);
@@ -381,7 +501,10 @@ int main(void)
     RUN_TEST(test_session_rejects_oversized_unterminated_reply);
     RUN_TEST(test_session_rejects_each_unexpected_status);
     RUN_TEST(test_session_rejects_malformed_and_mismatched_replies);
+    RUN_TEST(test_session_rejects_too_many_reply_lines);
     RUN_TEST(test_session_rejects_transport_failures_and_invalid_inputs);
     RUN_TEST(test_socket_transport_contract);
+    RUN_TEST(test_socket_transport_io);
+    RUN_TEST(test_socket_transport_connects_and_rejects_closed_port);
     return UNITY_END();
 }

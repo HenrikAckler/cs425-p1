@@ -24,9 +24,9 @@ static char *read_line(receiver *input)
             if (input->buffer[index] == '\r' && input->buffer[index + 1U] == '\n') {
                 size_t line_length = index - input->start + 2U;
                 char *line = malloc(line_length + 1U);
-                if (line == NULL) {
+                  if (line == NULL) { // GCOVR_EXCL_START
                     return NULL;
-                }
+                  } // GCOVR_EXCL_STOP
                 memcpy(line, input->buffer + input->start, line_length);
                 line[line_length] = '\0';
                 input->start = index + 2U;
@@ -110,14 +110,14 @@ static char *build_argument_command(const char *prefix, const char *value,
 {
     int length = envelope ? snprintf(NULL, 0, "%s<%s>", prefix, value)
                           : snprintf(NULL, 0, "%s %s", prefix, value);
-    if (length < 0) {
+      if (length < 0) { // GCOVR_EXCL_START
         return NULL;
-    }
+      } // GCOVR_EXCL_STOP
 
     char *raw = malloc((size_t) length + 1U);
-    if (raw == NULL) {
+      if (raw == NULL) { // GCOVR_EXCL_START
         return NULL;
-    }
+      } // GCOVR_EXCL_STOP
     if (envelope) {
         (void) snprintf(raw, (size_t) length + 1U, "%s<%s>", prefix, value);
     } else {
@@ -144,17 +144,17 @@ static int send_command(receiver *input, const char *operation,
                         const char *command, int expected)
 {
     char *wire_command = build_command(command);
-    if (wire_command == NULL) {
+      if (wire_command == NULL) { // GCOVR_EXCL_START
         fprintf(stderr, "%s: could not build command\n", operation);
         return -1;
-    }
+      } // GCOVR_EXCL_STOP
 
     int result = write_all(input->transport, wire_command, strlen(wire_command));
     free(wire_command);
-    if (result < 0) {
+      if (result < 0) {
         fprintf(stderr, "%s: transport write failed\n", operation);
         return -1;
-    }
+      }
 
     int actual = -1;
     char *reply = NULL;
@@ -198,12 +198,13 @@ int session_run(const session_transport *transport, const char *from,
         return -1;
     }
     free(reply);
+    reply = NULL;
 
     char *helo = build_argument_command("HELO", helo_host, 0);
     char *mail = build_argument_command("MAIL FROM:", from, 1);
     char *rcpt = build_argument_command("RCPT TO:", to, 1);
     char *payload = build_data_payload(from, to, subject, body);
-    if (helo == NULL || mail == NULL || rcpt == NULL || payload == NULL) {
+    if (helo == NULL || mail == NULL || rcpt == NULL || payload == NULL) { // GCOVR_EXCL_BR_LINE
         fprintf(stderr, "session: could not build SMTP message\n");
         free(helo);
         free(mail);

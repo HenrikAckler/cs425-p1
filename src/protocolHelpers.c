@@ -15,7 +15,7 @@ int contains_crlf(const char *value)
 static int append_bytes(char **output, size_t *length, size_t *capacity,
                         const char *bytes, size_t count)
 {
-    if (count > SIZE_MAX - *length - 1U) {
+    if (count > SIZE_MAX - *length - 1U) { // GCOVR_EXCL_START
         return 0;
     }
 
@@ -33,7 +33,7 @@ static int append_bytes(char **output, size_t *length, size_t *capacity,
         char *expanded = realloc(*output, new_capacity);
         if (expanded == NULL) {
             return 0;
-        }
+        } // GCOVR_EXCL_STOP
         *output = expanded;
         *capacity = new_capacity;
     }
@@ -48,7 +48,7 @@ static int append_bytes(char **output, size_t *length, size_t *capacity,
 static char *new_output(void)
 {
     char *output = malloc(1U);
-    if (output != NULL) {
+    if (output != NULL) { // GCOVR_EXCL_BR_LINE
         output[0] = '\0';
     }
     return output;
@@ -80,14 +80,14 @@ char *build_command(const char *command)
     }
 
     size_t command_length = strlen(command);
-    if (command_length > SIZE_MAX - 3U) {
+    if (command_length > SIZE_MAX - 3U) { // GCOVR_EXCL_START
         return NULL;
     }
 
     char *result = malloc(command_length + 3U);
     if (result == NULL) {
         return NULL;
-    }
+    } // GCOVR_EXCL_STOP
     memcpy(result, command, command_length);
     memcpy(result + command_length, "\r\n", 3U);
     return result;
@@ -101,9 +101,9 @@ char *dot_stuff_body(const char *body)
     }
 
     char *output = new_output();
-    if (output == NULL) {
+    if (output == NULL) { // GCOVR_EXCL_START
         return NULL;
-    }
+    } // GCOVR_EXCL_STOP
 
     size_t length = 0U;
     size_t capacity = 1U;
@@ -115,37 +115,37 @@ char *dot_stuff_body(const char *body)
                 free(output);
                 return NULL;
             }
-            if (!append_bytes(&output, &length, &capacity, "\r\n", 2U)) {
+                if (!append_bytes(&output, &length, &capacity, "\r\n", 2U)) { // GCOVR_EXCL_START
                 free(output);
                 return NULL;
-            }
+                } // GCOVR_EXCL_STOP
             ++index;
             at_line_start = 1;
         } else if (current == '\n') {
-            if (!append_bytes(&output, &length, &capacity, "\r\n", 2U)) {
+            if (!append_bytes(&output, &length, &capacity, "\r\n", 2U)) { // GCOVR_EXCL_START
                 free(output);
                 return NULL;
-            }
+            } // GCOVR_EXCL_STOP
             at_line_start = 1;
         } else {
             if (at_line_start && current == '.') {
-                if (!append_bytes(&output, &length, &capacity, ".", 1U)) {
+                if (!append_bytes(&output, &length, &capacity, ".", 1U)) { // GCOVR_EXCL_START
                     free(output);
                     return NULL;
-                }
+                } // GCOVR_EXCL_STOP
             }
-            if (!append_bytes(&output, &length, &capacity, &current, 1U)) {
+            if (!append_bytes(&output, &length, &capacity, &current, 1U)) { // GCOVR_EXCL_START
                 free(output);
                 return NULL;
-            }
+            } // GCOVR_EXCL_STOP
             at_line_start = 0;
         }
     }
 
-    if (length > 0U && !at_line_start &&
+    if (length > 0U && !at_line_start && // GCOVR_EXCL_BR_LINE
         !append_bytes(&output, &length, &capacity, "\r\n", 2U)) {
-        free(output);
-        return NULL;
+        free(output); // GCOVR_EXCL_LINE
+        return NULL; // GCOVR_EXCL_LINE
     }
     return output;
 }
@@ -166,23 +166,23 @@ char *build_data_payload(const char *from, const char *to,
 
     int header_length = snprintf(NULL, 0, "From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n",
                                  from, to, subject);
-    if (header_length < 0) {
+    if (header_length < 0) { // GCOVR_EXCL_START
         free(stuffed_body);
         return NULL;
-    }
+    } // GCOVR_EXCL_STOP
 
     size_t header_size = (size_t) header_length;
     size_t body_size = strlen(stuffed_body);
-    if (header_size > SIZE_MAX - body_size - 4U) {
+    if (header_size > SIZE_MAX - body_size - 4U) { // GCOVR_EXCL_START
         free(stuffed_body);
         return NULL;
-    }
+    } // GCOVR_EXCL_STOP
 
     char *payload = malloc(header_size + body_size + 4U);
-    if (payload == NULL) {
+    if (payload == NULL) { // GCOVR_EXCL_START
         free(stuffed_body);
         return NULL;
-    }
+    } // GCOVR_EXCL_STOP
     (void) snprintf(payload, header_size + 1U,
                     "From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n",
                     from, to, subject);

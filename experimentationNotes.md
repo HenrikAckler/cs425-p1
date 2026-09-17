@@ -46,3 +46,23 @@ There was some redundant code I was able to catch it writing. For example, it wr
 At this point, I decided to have copilot do a documentation pass, make sure everything had comments. It proceeded to choke trying to get this done for about 30 minutes. Not sure why.
 
 I managed to get past that, and worked on some testing. It wasn't quite creating all the test coverage needed, so I made it expand the testing.
+
+Testing coverage, with some supervision, went well until a point. But it kept leaving lines untested, and upon pushing for coverage on some specific areas (especially branching) the AI started just excluding things for testing. 
+
+
+
+NOTES ON TESTING EXCLUSIONS:
+
+malloc/realloc returning NULL: lab.c, protocolHelpers.c, session.c
+   These require exhausting or intercepting the process allocator.
+   Normal inputs cannot reliably produce this condition.
+snprintf returning a negative value: lab.c, protocolHelpers.c, session.c
+   The calls use fixed valid format strings; standard snprintf cannot reach this path under ordinary inputs.
+Integer overflow guards: protocolHelpers.c
+   Reaching them requires strings near SIZE_MAX, impossible to allocate in this process.
+EINTR retry branches: socketTransport.c
+   These require interrupting recv/send at exactly the syscall point, which is nondeterministic without syscall mocking or production test seams.
+socket() returning -1: socketTransport.c
+   Requires kernel/resource failure or syscall interception.
+One cleanup branch in session.c
+   Depends on allocator failure in one of several message allocations, so it has the same allocator fault-injection limitation.

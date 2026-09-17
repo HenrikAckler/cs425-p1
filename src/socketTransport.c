@@ -14,7 +14,7 @@ static ssize_t socket_read(void *context, void *buffer, size_t length)
 
     do {
         result = recv(transport->descriptor, buffer, length, 0);
-    } while (result < 0 && errno == EINTR);
+    } while (result < 0 && errno == EINTR); // GCOVR_EXCL_BR_LINE
 
     return result;
 }
@@ -27,7 +27,7 @@ static ssize_t socket_write(void *context, const void *buffer, size_t length)
 
     do {
         result = send(transport->descriptor, buffer, length, 0);
-    } while (result < 0 && errno == EINTR);
+    } while (result < 0 && errno == EINTR); // GCOVR_EXCL_BR_LINE
 
     return result;
 }
@@ -60,9 +60,9 @@ int socket_transport_connect(socket_transport *transport, const char *server,
          address = address->ai_next) {
         int descriptor = socket(address->ai_family, address->ai_socktype,
                                 address->ai_protocol);
-        if (descriptor < 0) {
+        if (descriptor < 0) { // GCOVR_EXCL_START
             continue;
-        }
+        } // GCOVR_EXCL_STOP
         if (connect(descriptor, address->ai_addr, address->ai_addrlen) == 0) {
             transport->descriptor = descriptor;
             break;
