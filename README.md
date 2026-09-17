@@ -1,22 +1,80 @@
-# Project X
+# Project 1
 
-- Name: John Doe
-- Email: johndoe@u.boisestate.edu
-- Class: CS123-001
+- Name: Hank Ackler
+- Email: henrikackler@u.boisestate.edu
+- Class: CS425-001
 
 ## Known Bugs or Issues
 
-TODO: Are there any known issues?
+No known issues.
 
 ## Experience
 
-TODO: Describe your experience with the project (struggles, breakthroughs, etc.).
+So I did this a bit different, per my agreement with Shane. Per our shared document, I'll go over the three tasks below:
 
-## Analysis
 
-TODO: Provide your analysis of the results. If the assignment does not require
-analysis, you can remove this section.
+### Task 1: Source Prep
 
-Here is an example of how to include a plot in your README:
+I trimmed and added a markdown file `assignment.md` with the canvas assignment. I removed the things I don't want the AI worrying about. 
 
-![Example Image](scripts/example_plot.png)
+I also added the entire RFC 5321 doc to a markdown, then gave AI the following prompt:
+```
+I want you to look at this document.
+Then, based on the information in assignment.md, I want you to strip out all information that is not needed to complete the assignment. 
+For example, the entire section 1 is largely useless to you, so it would be stripped out. 
+Most of section 2 can be simplified, and the original referenced in detail later as needed.
+Section 4.1 and 4.2 is rather valuable, the rest of section 4 less so.
+```
+I reviewed the output, and I was fairly happy with how it trimmed down the document. It seemed to be getting the information I wanted to keep fairly well. I'll need to help it out more later, but this will do. 
+
+
+### Task 2: Planning
+
+I kicked it off with this prompt:
+
+```
+We're going to start some planning. For reference, please review the files in sourceForAI.
+
+All code for now will be in src.
+
+I'd like to start by planning out what files we're going to have. I believe we should have the following:
+
+main.c - responsible for handling the command line input, setting things up and calling session
+protocHelpers.[h/c] - this should be responsible for taking text strings and return codes, and appropriately handling them (converting into data, setting return values, etc). This is not going to touch any IO, this simple takes the text behind SMTP and understands it.
+session.[h/c] - this should handle the active session. It will use a provided socket transport class to handle all I/O, and then use the protocHelper class to process all data. It is basically our logic layer.
+socketTransport.[h/c] - This is a wrapper class on top of the sockets that we can swap out.
+
+Look through steps 1 and 2 of the assignment especially, and tell me what you think of this plan. 
+
+Keep in mind, the current main.c, lab.c/h, and test file implemtnation is junk, don't worry about it. We'll replace it.
+```
+
+It gave a pretty good response, largely recorded in `implementation-plan.md`. I'm going to use this a bit differently than it suggests, however. The goal is to get to a minimum viable product pretty fast. So first, I'm going to have it make the empty files it needs. Then we're going to get main working, then start stretching for some proper working code. 
+
+### Task 3: Implementation
+
+ - I kicked it off by first working with the AI to add the files that were planned, just as stubs. Then it was time for working on command line parsing in `main.c`, per step 5. 
+   - This worked pretty well. I had to question it a bit on it's handling of how it read standard in, there were some redundant cautions. I'm still not convinvced it's the most efficient way to do it, but this should be sufficient for now.
+   - There was some redundant code I was able to catch it writing. For example, it wrote private clrf checks in multiple locations, which were all essentially redundant.
+ - At this point, I decided to have copilot do a documentation pass, make sure everything had comments. It proceeded to choke trying to get this done for about 30 minutes. Not sure why.
+ - I managed to get past that, and worked on some testing. It wasn't quite creating all the test coverage needed, so I made it expand the testing.
+ - Testing coverage, with some supervision, went well until a point. But it kept leaving lines untested, and upon pushing for coverage on some specific areas (especially branching) the AI started just excluding things for testing. 
+
+
+
+### NOTES ON TESTING EXCLUSIONS:
+There were a fair few areas that I ended up leaving some things excluded from coverage. The AI wanted to do more, I determined that it was being overzealous and reduced it to these, which I find fairly reasonable:
+
+ - malloc/realloc returning NULL: lab.c, protocolHelpers.c, session.c
+   - These require exhausting or intercepting the process allocator.
+   - Normal inputs cannot reliably produce this condition.
+ - snprintf returning a negative value: lab.c, protocolHelpers.c, session.c
+   - The calls use fixed valid format strings; standard snprintf cannot reach this path under ordinary inputs. It's possibe here but I don't think it's going to happen. I could be wrong here.
+ - Integer overflow guards: protocolHelpers.c
+   - Reaching them requires strings near SIZE_MAX, highly unlikely to allocate in this process.
+ - EINTR retry branches: socketTransport.c
+   - These require interrupting recv/send at exactly the syscall point, which is nondeterministic without syscall mocking or production test seams.
+ - socket() returning -1: socketTransport.c
+   - Requires kernel/resource failure or syscall interception.
+ - One cleanup branch in session.c
+   - Depends on allocator failure in one of several message allocations, so it has the same allocator fault-injection limitation.
